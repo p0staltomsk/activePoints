@@ -25,15 +25,36 @@ function readSingleFile(e) {
     }
 
     var reader = new FileReader();
+    var arrData = {};
 
     reader.onload = function (e) {
 
         var lines = e.target.result.split(/[\r\n]+/g); // tolerate both Windows and Unix linebreaks
+
         for(var i = 0; i < lines.length; i++) {
 
-            /* do something with lines[i] */
-            console.log(lines[i]); // todo тут нужно парсить строки в массив, для последующей чистки мусора и сортировки
+            var arrLine = lines[i].split(',');
+
+            if(arrLine[12] != undefined && arrLine[13] != undefined) {
+
+                var duration = (getDate(arrLine[13]) - getDate(arrLine[12])) / 1000;
+                var isFullAvtivity = (duration >= 180); // const.
+
+                arrData[getDate(arrLine[12])] = {
+                    "data" : {
+                        "sourceName" : arrLine[0],
+                        "StepCount" : arrLine[9],
+                        "day" : arrLine[15]
+                    },
+                    "endDate" : getDate(arrLine[13]),
+                    "startDate" : getDate(arrLine[12]),
+                    "durationInSeconds" : duration,
+                    "isFullAvtivity" : isFullAvtivity
+                };
+            }
         }
+
+        console.log(arrData);
 
         var contents = e.target.result;
 
@@ -53,6 +74,16 @@ function readSingleFile(e) {
             ["2020-03-20",7,70]
         ]
     );
+}
+
+function getDate(str) {
+
+    var myData = str.split(" ");
+
+    var myDate = myData[0].split("-");
+    var myTime = myData[1].split(":");
+
+    return new Date(myDate[0], myDate[1], myDate[2], myTime[0], myTime[1], myTime[2]).getTime();
 }
 
 function displayContents(contents) {
