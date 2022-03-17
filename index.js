@@ -27,7 +27,16 @@ function readSingleFile(e) {
     var reader = new FileReader();
 
     reader.onload = function (e) {
+
+        var lines = e.target.result.split(/[\r\n]+/g); // tolerate both Windows and Unix linebreaks
+        for(var i = 0; i < lines.length; i++) {
+
+            /* do something with lines[i] */
+            console.log(lines[i]); // todo тут нужно парсить строки в массив, для последующей чистки мусора и сортировки
+        }
+
         var contents = e.target.result;
+
         displayContents(contents);
     };
 
