@@ -6,7 +6,8 @@ document.getElementById('file-input').addEventListener('change', readSingleFile,
 const $device = 'Users’s Apple Watch';  // look only Apple Watch traks
 const $secondInMS = 1000;               // 1 second = 1000 ms.
 const $goodActivityEpisode = 180;       // 180 / 60 = 3 mins.
-const $rangeActivityPoints = 2280;      // 2280 / 60 = 38 mins.
+const $rangeActivityDoublePoints = 2280;// 2280 / 60 = 38 mins.
+const $rangeActivityPause = 18;
 
 /* for time calcs */
 const $lastMinute = '59';
@@ -36,6 +37,9 @@ var $balancePointsResultToSave = [];
  * @param e
  */
 function readSingleFile(e) {
+
+    /* performance start */
+    console.log('start from:', performance.now());
 
     var file = e.target.files[0];
 
@@ -72,14 +76,12 @@ function readSingleFile(e) {
                     "durationInSeconds" : duration,
                     "isFullAvtivity" : isFullAvtivity
                 };
-
-            }/* else {
-
-                console.log(arrLine);
-            }*/
+            }
         }
 
-        getBalancePoints(sortByDates(arrData));// sort table in chronology and get balance points
+        getBalancePoints(sortByDates(arrData)); // sort table in chronology and get balance points
+
+        console.log($BalancePointsByDays);
 
         calcBalancePoints($BalancePointsByDays);
 
@@ -90,6 +92,92 @@ function readSingleFile(e) {
 
     reader.readAsText(file);
 }
+
+/**
+ * If have next part can glue
+ * @param data
+ * @param key
+ * @returns {boolean}
+ */
+function isHasNextPart(data, key) {
+
+    var timeDiff = (getDate(navObj(data, key, 1).origStartDate) - getDate(data[key].origEndDate)) / $secondInMS;
+
+    if(timeDiff <= $rangeActivityPause)
+        return true;
+
+    return false;
+}
+
+function checkChainsForDoubleBalancePoints(data, key, hour) { // $rangeActivityDoublePoints
+
+    var link = data[key].data.day+" "+String(hour);
+
+    console.log(data[key].origStartDate, hour/*, $BalancePointsByDays[link]*/);
+
+    // тут нужно проверить сколько всего в часе эпизодов, и сравнить интервалы между первым и последним
+}
+
+/**
+ * registerPoints
+ * @param key
+ */
+function registerPoints(key) {
+
+    var point = 1;
+    // var isDouble = checkChainsForDoubleBalancePoints(data, key, currentHour); // проверяем нет ли суперсвязок активности для зачисления 2 очков
+
+    $BalancePointsByDays[key] = {"value": point};
+}
+
+/**
+ * Calc result balance points for days and save it into csv file
+ * @param data
+ */
+function calcBalancePoints(data) {
+
+    for (const [key, value] of Object.entries(data)) {
+
+        var dateHour = key.split(" ");
+
+        $balancePointsResult.push({
+            "day": dateHour[0],
+            "hour":dateHour[1],
+            "points":value.value
+        });
+    }
+
+    var pointsPerDay = {};
+
+    $balancePointsResult.forEach(
+
+        (element, index) => {
+
+            if(!pointsPerDay[element.day])
+                pointsPerDay[element.day] = 0;
+
+            pointsPerDay[element.day]++;
+        }
+    );
+
+    for (const [key, value] of Object.entries(pointsPerDay)) {
+
+        var hasNext = navObj(pointsPerDay, key, 1);
+
+        var separator = '';
+
+        if(hasNext != undefined)
+            separator = ["\n"];
+
+        var point = value;
+        var percent = point * 10;
+
+        $balancePointsResultToSave.push([key, point, percent + '.0'], separator);
+    }
+
+    saveSingleFile([$balancePointsResultToSave]);
+}
+
 
 /**
  * Check data for balance activity
@@ -104,19 +192,50 @@ function getBalancePoints(data) {
             var currentHour = convertDate(data[key].origStartDate)[1][0];
 
             if(isPartInAstroHour(data, key))
-                $BalancePointsByDays[data[key].data.day+" "+String(currentHour)] = {"value": 1};
+                registerPoints(data[key].data.day+" "+String(currentHour));
         }
-        else
-            isHasNextPart(data, key);
+        else if(isHasNextPart(data, key) && (data[key].durationInSeconds + navObj(data, key, 1).durationInSeconds) >= $goodActivityEpisode) {
+
+            $startDay = convertDate(data[key].origStartDate)[0][2];
+            $endDay = convertDate(navObj(data, key, 1).origEndDate)[0][2];
+            $startHour = convertDate(data[key].origStartDate)[1][0];
+            $endHour = convertDate(navObj(data, key, 1).origEndDate)[1][0];
+
+            if($startDay == $endDay && $startHour == $endHour)
+                registerPoints(navObj(data, key, 1).data.day+" "+String($endHour));
+        }
     }
 }
 
-function isHasNextPart(data, key) {
+/**
+ * Cut and diff range for episode
+ * @param diff
+ */
+function cutEpisodeForTwoRanges(diff) {
 
-    // проверяем можно ли склеить два эпизода что бы засчитать активность
-    // console.log(data[key], navObj(data, key, 1));
+    console.log(diff);
+
+    var range1 = getDate(diff[0][0][0]+"-"+diff[0][0][1]+"-"+diff[0][0][2]+" "+diff[0][1][0]+":"+diff[0][1][1]+":"+diff[0][1][2]);
+    var range2 = getDate(diff[0][0][0]+"-"+diff[0][0][1]+"-"+diff[0][0][2]+" "+diff[0][1][0]+":"+$lastMinute+":"+$lastSecond) + $secondInMS; // + 1 last sec
+    var range3 = getDate(diff[1][0][0]+"-"+diff[1][0][1]+"-"+diff[1][0][2]+" "+$firstMinute+":"+$firstMinute+":"+$firstMinute);
+    var range4 = getDate(diff[1][0][0]+"-"+diff[1][0][1]+"-"+diff[1][0][2]+" "+diff[1][1][0]+":"+diff[1][1][1]+":"+diff[1][1][2]);
+
+    var result1 = ((range2 - range1) / $secondInMS); // интервал в конце часа
+    var result2 = ((range4 - range3) / $secondInMS); // интервал в начале часа
+
+    if(result1 >= $goodActivityEpisode)
+        registerPoints(diff[0][0][0]+"-"+diff[0][0][1]+"-"+diff[0][0][2]+" "+"23");
+
+    if(result2 >= $goodActivityEpisode)
+        registerPoints(diff[1][0][0]+"-"+diff[1][0][1]+"-"+diff[1][0][2]+" "+"00");
 }
 
+/**
+ * Check episode in some hours
+ * @param data
+ * @param key
+ * @returns {boolean}
+ */
 function isPartInAstroHour(data, key) {
 
     return checkDatesForAstroHour(data[key].origStartDate, data[key].origEndDate);
@@ -139,65 +258,9 @@ function checkDatesForAstroHour(date1, date2) {
         diff[0][1][0] == diff[1][1][0] // in one Astro Hour
     ) return true;
     else
-        cutEpisodeForTwoRanges(diff);
+        cutEpisodeForTwoRanges(diff); // если это не один час, то отправляем на анализ, что бы понять входит ли эпизод хотя бы в один час полноценно
 
     return false;
-}
-
-function cutEpisodeForTwoRanges(diff) {
-
-    // todo use - getDate()
-    var range1 = new Date(diff[0][0][0], diff[0][0][1], diff[0][0][2], diff[0][1][0], diff[0][1][1], diff[0][1][2]).getTime();
-    var range2 = new Date(diff[0][0][0], diff[0][0][1], diff[0][0][2], diff[0][1][0], $lastMinute, $lastSecond).getTime() + $secondInMS; // + 1 sec
-    var range3 = new Date(diff[1][0][0], diff[1][0][1], diff[1][0][2], $firstMinute, $firstMinute, $firstMinute).getTime();
-    var range4 = new Date(diff[1][0][0], diff[1][0][1], diff[1][0][2], diff[1][1][0], diff[1][1][1], diff[1][1][2]).getTime();
-
-    var result1 = ((range2 - range1) / $secondInMS);
-    var result2 = ((range4 - range3) / $secondInMS);
-
-    if(result1 >= $goodActivityEpisode)
-        $BalancePointsByDays[diff[0][0][0]+"-"+diff[0][0][1]+"-"+diff[0][0][2]+" "+"23"] = {"value": 1};
-    if(result2 >= $goodActivityEpisode)
-        $BalancePointsByDays[diff[1][0][0]+"-"+diff[1][0][1]+"-"+diff[1][0][2]+" "+"00"] = {"value": 1};
-}
-
-function checkChainsForDoubleBalancePoints(data) {
-
-    // проверяем цепочки эпизодов, на двойную активность
-}
-
-function calcBalancePoints(data) {
-
-    for (const [key, value] of Object.entries(data)) {
-
-        var dateHour = key.split(" ");
-
-        $balancePointsResult.push({
-            "day": dateHour[0],
-            "hour":dateHour[1],
-            "points":value.value
-        });
-    }
-
-    $balancePointsResult.forEach(
-
-        (element, index) => {
-
-            var separator = '';
-            if($balancePointsResult.length > index + 1)
-                separator = ["\n"];
-
-            var point = 1; // todo
-            var percent = point * 10; // todo
-
-            $balancePointsResultToSave.push([element.day,point,percent+'.0'],separator);
-        }
-    );
-
-    /*console.log($balancePointsResult);
-    console.log($balancePointsResultToSave);*/
-
-    saveSingleFile([$balancePointsResultToSave]);
 }
 
 /**
@@ -206,6 +269,8 @@ function calcBalancePoints(data) {
  * @returns {*}
  */
 function sortByDates(data) {
+
+    // todo проверить - Object.entries(obj).sort((a, b) => a[0] - b[0]);
 
     return arrDataSorted = Object.keys(data).sort().reduce(
         (obj, key) => {
@@ -257,14 +322,15 @@ function saveSingleFile(data) {
 
     let csvContent = "data:text/csv;charset=utf-8,day,balance_points,balance_day\n" + data.map(e => e.join("")).join("\n");
 
-    // console.log(csvContent);
-
     var encodedUri = encodeURI(csvContent);
     var link = document.getElementById("result-link");
 
     link.setAttribute("href", encodedUri);
     link.innerHTML = "download mobile_test_output_example.csv";
     link.setAttribute("download", "mobile_test_output_example.csv");
+
+    /* performance end */
+    console.log('stop at:', performance.now());
 }
 
 /* visualisation for tests & debug */
