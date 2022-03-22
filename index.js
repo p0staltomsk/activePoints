@@ -3,6 +3,7 @@
 document.getElementById('file-input').addEventListener('change', readSingleFile, false);
 
 /* any const */
+const $ver = '0.1';                     // beta ver
 const $device = 'Users’s Apple Watch';  // look only Apple Watch traks
 const $secondInMS = 1000;               // 1 second = 1000 ms.
 const $goodActivityEpisode = 180;       // 180 / 60 = 3 mins.
@@ -16,10 +17,10 @@ const $firstTime = '00';
 
 /* keys const */
 const $sourceNameKey = 0;
-const $StepCountKey = 9;
 const $dayKey = 15;
 const $startDateKey = 12;
 const $endDateKey = 13;
+const $percentsPerPoint = 10;
 
 /* next key in obj table */
 const navObj = (obj, currentKey, direction) => {return Object.values(obj)[Object.keys(obj).indexOf(currentKey) + direction];}
@@ -31,7 +32,6 @@ var $globalArrData = {};
 var $BalancePointsByDays = {};
 
 var $balancePointsResult = [];
-var $balancePointsResultToSave = [];
 
 /* methods */
 
@@ -42,7 +42,7 @@ var $balancePointsResultToSave = [];
 function readSingleFile(e) {
 
     /* performance start */
-    console.log('start from:', performance.now());
+    console.log('readSingleFile from', performance.now());
 
     var file = e.target.files[0];
 
@@ -84,13 +84,19 @@ function readSingleFile(e) {
 
         $globalArrData = sortByDates(arrData);
 
-        console.log($globalArrData);
+        // console.log($globalArrData);
+
+        /* performance start */
+        console.log('readSingleFile end', performance.now());
 
         getBalancePoints($globalArrData); // sort table in chronology and get balance points
 
-        console.log($BalancePointsByDays);
+        // console.log($BalancePointsByDays);
 
         calcBalancePoints($BalancePointsByDays);
+
+        /* performance start */
+        console.log('calcBalancePoints end', performance.now());
 
         var contents = e.target.result;
 
@@ -144,28 +150,9 @@ function getBalancePoints(data) {
         }
     }
 
-    // console.log('cases', $caseIn);
-
-    for (const [key, value] of Object.entries($caseIn)) {
-
-        var episodes = getEpisodeHours(value.start, value.stop);
-
-        // console.log('episodes', episodes);
-
-        for (const [num, checkedEpisode] of Object.entries(episodes))
-            registerPoints(data[key].data.day, parseInt(checkedEpisode), data[key].origStartDate);
-    }
-}
-
-/**
- * Get 2 time diff in secs
- * @param time1
- * @param time2
- * @returns {number}
- */
-function getDiffTwoTimestamps(time1, time2) {
-
-    return (time1 - time2) / $secondInMS;
+    for (const [key, value] of Object.entries($caseIn))
+        for (const [num, checkedEpisode] of Object.entries(getEpisodeHours(value.start, value.stop)))
+            registerPoints(checkedEpisode.day, parseInt(checkedEpisode.hour), data[key].origStartDate);
 }
 
 /**
@@ -194,14 +181,13 @@ function isHasNextParts(key, nextKey) {
 }
 
 /**
- * Analyse some episode for AH
+ * Analyse some episode for Astro Hour
  * @param element
  * @returns {Array}
  */
 function getEpisodeHours(start, stop) {
 
-    var astroHours = false,
-        baseReturn = [],
+    var baseReturn = [],
         from = convertToFullDateAndTime(start),
         to = convertToFullDateAndTime(stop),
         startFrom = convertDate(from),
@@ -211,33 +197,21 @@ function getEpisodeHours(start, stop) {
             new Date(stopTo[0][0] + "-" + stopTo[0][1] + "-" + stopTo[0][2] + " " + stopTo[1][0] + ":" + $lastTime + ":" + $lastTime).getTime()
         );
 
-    baseReturn = [String(parseInt(startFrom[1][0]))];
-
     if (astroHoursCnt > 1) {
 
         baseReturn = getAstroHours(
             {
                 "origStartDate": from,
-                "origEndDate": to,
+                "origEndDate": to
             },
             startFrom[0][0] + "-" + startFrom[0][1] + "-" + startFrom[0][2] + " " + startFrom[1][0] + ":" + $firstTime + ":" + $firstTime,
             stopTo[0][0] + "-" + stopTo[0][1] + "-" + stopTo[0][2] + " " + stopTo[1][0] + ":" + $lastTime + ":" + $lastTime,
             astroHoursCnt
         );
-    }
+    } else
+        baseReturn.push({"hour": parseInt(startFrom[1][0]), "day": formatedDate(startFrom[0][0] + "-" + startFrom[0][1] + "-" + startFrom[0][2])});
 
     return baseReturn;
-}
-
-/**
- * Calc Astro Hours for episode
- * @param start
- * @param finish
- * @returns {number}
- */
-function calcHours(start, finish) {
-
-    return Math.ceil((finish - start) / $hourInMiliseconds);
 }
 
 /**
@@ -265,10 +239,35 @@ function getAstroHours(episode, start, finish, astroHours) {
         if (i == 0 && (fstPart / $secondInMS) < $goodActivityEpisode || parseInt(i) == parseInt(astroHours - 1) && (secPart / $secondInMS) < $goodActivityEpisode)
             continue;
 
-        hours.push(String(new Date(fstAH - $hourInMiliseconds).getHours()));
+        var returnTime = new Date(fstAH - $hourInMiliseconds),
+            eventDay = formatedDate(fstAH - $hourInMiliseconds) // returnTime.getFullYear() + "-" + returnTime.getMonth() + "-" + returnTime.getDate();
+
+        hours.push({"hour": returnTime.getHours(), "day": eventDay});
     }
 
     return hours;
+}
+
+/**
+ * Calc Astro Hours for episode
+ * @param start
+ * @param finish
+ * @returns {number}
+ */
+function calcHours(start, finish) {
+
+    return Math.ceil((finish - start) / $hourInMiliseconds);
+}
+
+/**
+ * Get 2 time diff in secs
+ * @param time1
+ * @param time2
+ * @returns {number}
+ */
+function getDiffTwoTimestamps(time1, time2) {
+
+    return (time1 - time2) / $secondInMS;
 }
 
 /**
@@ -287,93 +286,76 @@ function registerPoints(key, hour, some) {
 }
 
 /**
- * Cut and diff range for episode
- * @param diff
- */
-function cutEpisodeForTwoRanges(diff) {
-
-    var range1 = getDate(diff[0][0][0] + "-" + diff[0][0][1] + "-" + diff[0][0][2] + " " + diff[0][1][0] + ":" + diff[0][1][1] + ":" + diff[0][1][2]);
-    var range2 = getDate(diff[0][0][0] + "-" + diff[0][0][1] + "-" + diff[0][0][2] + " " + diff[0][1][0] + ":" + $lastTime + ":" + $lastTime) + $secondInMS; // + 1 last sec
-    var range3 = getDate(diff[1][0][0] + "-" + diff[1][0][1] + "-" + diff[1][0][2] + " " + $firstTime + ":" + $firstTime + ":" + $firstTime);
-    var range4 = getDate(diff[1][0][0] + "-" + diff[1][0][1] + "-" + diff[1][0][2] + " " + diff[1][1][0] + ":" + diff[1][1][1] + ":" + diff[1][1][2]);
-
-    var result1 = ((range2 - range1) / $secondInMS); // интервал в конце часа
-    var result2 = ((range4 - range3) / $secondInMS); // интервал в начале часа
-
-    if (result1 >= $goodActivityEpisode)
-        registerPoints(diff[0][0][0] + "-" + diff[0][0][1] + "-" + diff[0][0][2], 23);
-
-    if (result2 >= $goodActivityEpisode)
-        registerPoints(diff[1][0][0] + "-" + diff[1][0][1] + "-" + diff[1][0][2], 0);
-}
-
-/**
- * Check episode for activity in Astro Hour
- * @param date1
- * @param date2
- * @returns {boolean}
- */
-function checkDatesForAstroHour(date1, date2) {
-
-    var diff = [convertDate(date1), convertDate(date2)];
-
-    if ( // проверяем простой ли это эпизод, и входит ли он в один день и час
-    diff[0][0][0] == diff[1][0][0] &&
-    diff[0][0][1] == diff[1][0][1] &&
-    diff[0][0][2] == diff[1][0][2] &&
-    diff[0][1][0] == diff[1][1][0] // in one Astro Hour
-    ) return true;
-    /*else
-        cutEpisodeForTwoRanges(diff);*/ // todo если это не один час, то отправляем на анализ, что бы понять входит ли эпизод хотя бы в один час полноценно
-
-    return false;
-}
-
-function checkChainsForDoubleBalancePoints(key, hour) { // $rangeActivityDoublePoints
-
-    // console.log(key);
-    // тут нужно проверить сколько всего в часе эпизодов, и сравнить интервалы между первым и последним
-}
-
-/**
  * Calc result balance points for days and save it into csv file
  * @param data
  */
 function calcBalancePoints(data) {
 
-    for (const [key, value] of Object.entries(data)) {
-
-        var dateHour = key.split(" ");
-
-        $balancePointsResult.push({
-            "day": dateHour[0],
-            "hour": dateHour[1],
-            "points": value.value
-        });
-    }
-
     var pointsPerDay = {};
 
-    $balancePointsResult.forEach((element, index) => {if(!pointsPerDay[element.day]) pointsPerDay[element.day] = 0; pointsPerDay[element.day]++;});
+    for (const [activeDay, activeHours] of Object.entries(data)) {
 
-    for (const [key, value] of Object.entries(pointsPerDay)) {
+        if(pointsPerDay[activeDay] == undefined)
+            pointsPerDay[activeDay] = {};
 
-        var hasNext = navObj(pointsPerDay, key, 1);
+        for (const [hour, startDates] of Object.entries(activeHours)) {
 
-        var separator = '';
+            if(pointsPerDay[activeDay][hour] == undefined)
+                pointsPerDay[activeDay][hour] = 0;
+
+            pointsPerDay[activeDay][hour] = (startDates.length == 1) ? 1 : compareEpisodesInHour(startDates);
+        }
+    }
+
+    // console.log('PPD', pointsPerDay);
+
+    for (const [day, hours] of Object.entries(pointsPerDay)) {
+
+        var hasNext = navObj(pointsPerDay, day, 1),
+            separator = '',
+            point = 0,
+            percent = 0;
 
         if (hasNext != undefined)
             separator = ["\n"];
 
-        var point = value;
-        var percent = point * 10;
+        for (const [hour, points] of Object.entries(hours)) {
+            point = point + points;
+            percent = point * $percentsPerPoint;
+        }
 
-        $balancePointsResultToSave.push([key, point, percent + '.0'], separator);
+        $balancePointsResult.push([day, point, percent + '.0'], separator);
     }
 
-    console.log($balancePointsResultToSave);
+    console.log($balancePointsResult); // todo debug & tests
 
-    saveSingleFile([$balancePointsResultToSave]);
+    saveSingleFile([$balancePointsResult]);
+}
+
+/**
+ * Check episode and give points todo think about return val
+ * @param data
+ * @returns {number}
+ */
+function compareEpisodesInHour(data) {
+
+    var start = data[0],
+        stop = data[data.length - 1],
+        arrStart = convertDate(start[0]),
+        arrStop = convertDate(stop[0]);
+
+    if (arrStart[0][2] == arrStop[0][2]) {
+
+        if(((getDate(stop[0]) - getDate(start[0]))) / $secondInMS < $rangeActivityDoublePoints)
+            return 1;
+
+    } else {
+
+        if(((getDate(stop[0]) - getDate(arrStop[0][0] + "-" + arrStop[0][1] + "-" + arrStop[0][2] + " " + arrStop[1][0] + ":" + $firstTime + ":" + $firstTime))) / $secondInMS < $rangeActivityDoublePoints)
+            return 1;
+    }
+
+    return 2;
 }
 
 /**
@@ -383,22 +365,17 @@ function calcBalancePoints(data) {
  */
 function sortByDates(data) {
 
-    return Object.keys(data).sort().reduce((obj, key) => {obj[key] = data[key];return obj;},{});
+    return Object.keys(data).sort().reduce((obj, key) => {obj[key] = data[key]; return obj;},{});
 }
 
 /**
- * TODO get str split to and convert to timestamp
+ * Get date timestamp
  * @param str
  * @returns {number}
  */
 function getDate(str) {
 
-    var myData = str.split(" ");
-
-    var myDate = myData[0].split("-");
-    var myTime = myData[1].split(":");
-
-    return new Date(myDate[0], myDate[1], myDate[2], myTime[0], myTime[1], myTime[2]).getTime();
+    return new Date(str).getTime();
 }
 
 /**
@@ -408,31 +385,18 @@ function getDate(str) {
  */
 function convertDate(date) {
 
-    var myData = date.split(" ");
-
-    var myDate = myData[0].split("-");
-    var myTime = myData[1].split(":");
+    var Date = date.split(" "),
+        returnDate = Date[0].split("-"),
+        returnTime = Date[1].split(":");
 
     return [
-        myDate,
-        myTime
+        returnDate,
+        returnTime
     ];
 }
 
 /**
- * TODO
- * @param timestamp
- * @returns {string}
- */
-function convertToTime(timestamp) {
-
-    var date = new Date(timestamp);
-
-    return date.getHours() + ":" + date.getMinutes() + ":" + date.getSeconds();
-}
-
-/**
- * TODO
+ * TODO DOCS
  * @param timestamp
  * @returns {string}
  */
@@ -444,7 +408,27 @@ function convertToFullDateAndTime(timestamp) {
 }
 
 /**
- * TODO
+ * Beautiful date format
+ * @param date
+ * @returns {string}
+ */
+function formatedDate(date) {
+
+    var d = new Date(date),
+        month = '' + (d.getMonth() + 2),
+        day = '' + d.getDate(),
+        year = d.getFullYear();
+
+    if (month.length < 2)
+        month = '0' + month;
+    if (day.length < 2)
+        day = '0' + day;
+
+    return [year, month, day].join('-');
+}
+
+/**
+ * TODO DOCS
  * Save result in csv file for download
  * @param data
  */
@@ -458,9 +442,6 @@ function saveSingleFile(data) {
     link.setAttribute("href", encodedUri);
     link.innerHTML = "download mobile_test_output_example.csv";
     link.setAttribute("download", "mobile_test_output_example.csv");
-
-    /* performance end */
-    console.log('stop at:', performance.now());
 }
 
 /* visualisation for tests & debug */
