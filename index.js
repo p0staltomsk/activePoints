@@ -85,7 +85,7 @@ function readSingleFile(e) {
 
         getBalancePoints($globalArrData); // sort table in chronology and get balance points
 
-        // console.log($BalancePointsByDays);
+        console.log($BalancePointsByDays);
 
         calcBalancePoints($BalancePointsByDays);
 
@@ -103,8 +103,10 @@ function readSingleFile(e) {
 /**
  * Clean first, next Check data for some activity
  * @param data
+ * @param unitTest
+ * @returns {{}}
  */
-function getBalancePoints(data) {
+function getBalancePoints(data, unitTest) {
 
     var $caseIn = {}, glueStart = 0, glueStop = 0;
 
@@ -112,7 +114,7 @@ function getBalancePoints(data) {
 
         var nextKey = navObj(data, startTime, 1),
             prevKey = navPrevObj(data, startTime, 1),
-            endDate = isHasNextParts(String(startTime), nextKey);
+            endDate = isHasNextParts(String(startTime));
 
         if (endDate > 0) {
 
@@ -144,6 +146,9 @@ function getBalancePoints(data) {
         }
     }
 
+    if(unitTest == true)
+        return $caseIn;
+
     for (const [startTime, gluedCases] of Object.entries($caseIn)) // calls getEpisodeHours for glued episodes
         for (const [num, checkedEpisode] of Object.entries(getEpisodeHours(gluedCases.start, gluedCases.stop)))
             registerPoints(checkedEpisode.day, parseInt(checkedEpisode.hour), data[startTime].origStartDate);
@@ -152,17 +157,11 @@ function getBalancePoints(data) {
 /**
  * Check next element for glue episodes
  * @param key
- * @param nextKey
  * @returns {*}
  */
-function isHasNextParts(key, nextKey) {
+function isHasNextParts(key) {
 
-    var next = null;
-
-    if (nextKey == undefined)
-        next = navObj($globalArrData, key, 1);
-    else
-        next = nextKey;
+    var next = navObj($globalArrData, key, 1);
 
     if (next == undefined)
         return null;

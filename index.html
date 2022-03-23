@@ -39,7 +39,9 @@
 
 <!-- run tests first on page init -->
 <script>
+    console.log('mocha.run', performance.now());
     mocha.run();
+    console.log('mocha.finish', performance.now());
 </script>
 
 </html>
