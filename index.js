@@ -400,7 +400,7 @@ function convertToFullDateAndTime(timestamp) {
 
     var date = new Date(timestamp);
 
-    return date.getFullYear() + "-" + date.getMonth() + "-" + date.getDate() + " " + date.getHours() + ":" + date.getMinutes() + ":" + date.getSeconds();
+    return date.getFullYear() + "-" + (date.getMonth() + 1) + "-" + date.getDate() + " " + date.getHours() + ":" + date.getMinutes() + ":" + date.getSeconds();
 }
 
 /**
@@ -410,18 +410,43 @@ function convertToFullDateAndTime(timestamp) {
  */
 function formatedDate(date) {
 
+    return formatedDateAndTime(date, true);
+}
+
+/**
+ * Get date 'yyyy-mm-dd hh:mm:ss'
+ * @param date
+ * @returns {string}
+ */
+function formatedDateAndTime(date, onlyDate) {
+
     var d = new Date(date),
-        month = '' + (d.getMonth() + 2),
-        day = '' + d.getDate(),
-        year = d.getFullYear();
+        year = d.getFullYear(),
+        month = addZero('' + (d.getMonth() + 1)),
+        day = addZero('' + d.getDate()),
+        hour = addZero(d.getHours()),
+        minute = addZero(d.getMinutes()),
+        second = addZero(d.getSeconds());
 
-    if (month.length < 2)
-        month = '0' + month;
+    if(onlyDate == true)
+        return [year, month, day].join('-');
 
-    if (day.length < 2)
-        day = '0' + day;
+    return [year, month, day].join('-') + " " + [hour, minute, second].join(':');
+}
 
-    return [year, month, day].join('-');
+/**
+ * Format date elements to 'yyyy-mm-dd hh:mm:ss'
+ * @param str
+ * @returns {*}
+ */
+function addZero(str) {
+
+    str = String(str);
+
+    if (str.length < 2)
+        str = '0' + str;
+
+    return str;
 }
 
 /**
