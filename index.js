@@ -11,13 +11,15 @@ const $rangeActivityDoublePoints = 2280;// 2280 / 60 = 38 mins.
 const $rangeActivityPause = 18;
 const $hourInMiliseconds = 3600000;
 
+const $balancePoint = 1;
+const $doubleBalancePoint = 2;
+
 /* for time calcs */
 const $lastTime = '59';
 const $firstTime = '00';
 
 /* keys const */
 const $sourceNameKey = 0;
-const $dayKey = 15;
 const $startDateKey = 12;
 const $endDateKey = 13;
 const $percentsPerPoint = 10;
@@ -28,10 +30,9 @@ const navPrevObj = (obj, currentKey, direction) =>{return Object.values(obj)[Obj
 
 /* obj & arrays */
 
-var $globalArrData = {};
-var $BalancePointsByDays = {};
-
-var $balancePointsResult = [];
+var $globalArrData = {},
+    $BalancePointsByDays = {},
+    $balancePointsResult = [];
 
 /* methods */
 
@@ -42,6 +43,7 @@ var $balancePointsResult = [];
 function readSingleFile(e) {
 
     /* performance start */
+    console.log('start Balance Points Calculator ver - ' + $ver, performance.now());
     console.log('readSingleFile from', performance.now());
 
     var file = e.target.files[0];
@@ -64,27 +66,19 @@ function readSingleFile(e) {
 
             if (arrLine[$startDateKey] != undefined && arrLine[$endDateKey] != undefined && arrLine[$sourceNameKey] == $device) {
 
-                var duration = (getDate(arrLine[$endDateKey]) - getDate(arrLine[$startDateKey])) / $secondInMS;
-                var isFullAvtivity = (duration >= $goodActivityEpisode);
-
                 arrData[getDate(arrLine[$startDateKey])] = { // timestamp in array keys for sort table in chronology
-                    "data": {
-                        "sourceName": arrLine[$sourceNameKey],
-                        "day": arrLine[$dayKey]
-                    },
                     "endDate": getDate(arrLine[$endDateKey]),
                     "startDate": getDate(arrLine[$startDateKey]),
                     "origStartDate": arrLine[$startDateKey],
                     "origEndDate": arrLine[$endDateKey],
-                    "durationInSeconds": duration,
-                    "isFullAvtivity": isFullAvtivity
+                    "isFullAvtivity": ((getDate(arrLine[$endDateKey]) - getDate(arrLine[$startDateKey])) / $secondInMS >= $goodActivityEpisode)
                 };
             }
         }
 
         $globalArrData = sortByDates(arrData);
 
-        // console.log($globalArrData);
+        console.log($globalArrData);
 
         /* performance start */
         console.log('readSingleFile end', performance.now());
@@ -114,16 +108,16 @@ function getBalancePoints(data) {
 
     var $caseIn = {}, glueStart = 0, glueStop = 0;
 
-    for (const [key, value] of Object.entries(data)) {
+    for (const [startTime, trakedLine] of Object.entries(data)) {
 
-        var nextKey = navObj(data, key, 1),
-            prevKey = navPrevObj(data, key, 1),
-            endDate = isHasNextParts(String(key), nextKey);
+        var nextKey = navObj(data, startTime, 1),
+            prevKey = navPrevObj(data, startTime, 1),
+            endDate = isHasNextParts(String(startTime), nextKey);
 
         if (endDate > 0) {
 
             if (glueStart == 0)
-                glueStart = parseInt(key);
+                glueStart = parseInt(startTime);
 
             glueStop = endDate;
 
@@ -141,23 +135,24 @@ function getBalancePoints(data) {
                 glueStart = 0, glueStop = 0;
             }
 
-            if (!endDate && value.isFullAvtivity && value.endDate != isHasNextParts(String(prevKey.startDate)))
-                $caseIn[parseInt(key)] = {
-                    "start": parseInt(key),
-                    "stop": value.endDate,
-                    "diff": getDiffTwoTimestamps(value.endDate, parseInt(key))
+            if (!endDate && trakedLine.isFullAvtivity && trakedLine.endDate != isHasNextParts(String(prevKey.startDate)))
+                $caseIn[parseInt(startTime)] = {
+                    "start": parseInt(startTime),
+                    "stop": trakedLine.endDate,
+                    "diff": getDiffTwoTimestamps(trakedLine.endDate, parseInt(startTime))
                 };
         }
     }
 
-    for (const [key, value] of Object.entries($caseIn))
-        for (const [num, checkedEpisode] of Object.entries(getEpisodeHours(value.start, value.stop)))
-            registerPoints(checkedEpisode.day, parseInt(checkedEpisode.hour), data[key].origStartDate);
+    for (const [startTime, gluedCases] of Object.entries($caseIn)) // calls getEpisodeHours for glued episodes
+        for (const [num, checkedEpisode] of Object.entries(getEpisodeHours(gluedCases.start, gluedCases.stop)))
+            registerPoints(checkedEpisode.day, parseInt(checkedEpisode.hour), data[startTime].origStartDate);
 }
 
 /**
- * TODO DOCS
+ * Check next element for glue episodes
  * @param key
+ * @param nextKey
  * @returns {*}
  */
 function isHasNextParts(key, nextKey) {
@@ -182,7 +177,8 @@ function isHasNextParts(key, nextKey) {
 
 /**
  * Analyse some episode for Astro Hour
- * @param element
+ * @param start
+ * @param stop
  * @returns {Array}
  */
 function getEpisodeHours(start, stop) {
@@ -215,7 +211,7 @@ function getEpisodeHours(start, stop) {
 }
 
 /**
- * Look for every hour in episode todo look for code optimization
+ * Look for every hour in episode
  * @param episode
  * @param start
  * @param finish
@@ -224,13 +220,11 @@ function getEpisodeHours(start, stop) {
  */
 function getAstroHours(episode, start, finish, astroHours) {
 
-    var hours = [];
-
-    var fstAH = getDate(start); // таймстампы первого астрочаса
-    var secAH = getDate(finish); // таймстампы последнего астрочаса
-
-    var fstPart = (fstAH + $hourInMiliseconds - getDate(episode.origStartDate)); // милисекунды первой части
-    var secPart = (getDate(episode.origEndDate) - secAH + $hourInMiliseconds - $secondInMS); // милисекунды второй части
+    var hours = [],
+        fstAH = getDate(start), // timestamp first astrohour
+        secAH = getDate(finish), // timestamp last astrohour
+        fstPart = (fstAH + $hourInMiliseconds - getDate(episode.origStartDate)),
+        secPart = (getDate(episode.origEndDate) - secAH + $hourInMiliseconds - $secondInMS);
 
     for (var i = 0; i < astroHours; i++) {
 
@@ -240,7 +234,7 @@ function getAstroHours(episode, start, finish, astroHours) {
             continue;
 
         var returnTime = new Date(fstAH - $hourInMiliseconds),
-            eventDay = formatedDate(fstAH - $hourInMiliseconds) // returnTime.getFullYear() + "-" + returnTime.getMonth() + "-" + returnTime.getDate();
+            eventDay = formatedDate(fstAH - $hourInMiliseconds)
 
         hours.push({"hour": returnTime.getHours(), "day": eventDay});
     }
@@ -271,10 +265,12 @@ function getDiffTwoTimestamps(time1, time2) {
 }
 
 /**
- * registerPoints
+ * Register Balance Points
  * @param key
+ * @param hour
+ * @param point
  */
-function registerPoints(key, hour, some) {
+function registerPoints(key, hour, point) {
 
     if ($BalancePointsByDays[key] == undefined)
         $BalancePointsByDays[key] = [];
@@ -282,7 +278,7 @@ function registerPoints(key, hour, some) {
     if ($BalancePointsByDays[key][parseInt(hour)] == undefined)
         $BalancePointsByDays[key][parseInt(hour)] = [];
 
-    $BalancePointsByDays[key][parseInt(hour)].push([some]);
+    $BalancePointsByDays[key][parseInt(hour)].push([point]);
 }
 
 /**
@@ -307,7 +303,7 @@ function calcBalancePoints(data) {
         }
     }
 
-    // console.log('PPD', pointsPerDay);
+    console.log('PPD', pointsPerDay);
 
     for (const [day, hours] of Object.entries(pointsPerDay)) {
 
@@ -327,13 +323,13 @@ function calcBalancePoints(data) {
         $balancePointsResult.push([day, point, percent + '.0'], separator);
     }
 
-    console.log($balancePointsResult); // todo debug & tests
+    console.log($balancePointsResult);
 
     saveSingleFile([$balancePointsResult]);
 }
 
 /**
- * Check episode and give points todo think about return val
+ * Check episode and give points
  * @param data
  * @returns {number}
  */
@@ -347,15 +343,15 @@ function compareEpisodesInHour(data) {
     if (arrStart[0][2] == arrStop[0][2]) {
 
         if(((getDate(stop[0]) - getDate(start[0]))) / $secondInMS < $rangeActivityDoublePoints)
-            return 1;
+            return $balancePoint;
 
     } else {
 
         if(((getDate(stop[0]) - getDate(arrStop[0][0] + "-" + arrStop[0][1] + "-" + arrStop[0][2] + " " + arrStop[1][0] + ":" + $firstTime + ":" + $firstTime))) / $secondInMS < $rangeActivityDoublePoints)
-            return 1;
+            return $balancePoint;
     }
 
-    return 2;
+    return $doubleBalancePoint;
 }
 
 /**
@@ -365,7 +361,7 @@ function compareEpisodesInHour(data) {
  */
 function sortByDates(data) {
 
-    return Object.keys(data).sort().reduce((obj, key) => {obj[key] = data[key]; return obj;},{});
+    return Object.keys(data).sort().reduce((obj, key) => {obj[key] = data[key]; return obj;}, {});
 }
 
 /**
@@ -396,7 +392,7 @@ function convertDate(date) {
 }
 
 /**
- * TODO DOCS
+ * Get timestamp and return formated date & time
  * @param timestamp
  * @returns {string}
  */
@@ -421,6 +417,7 @@ function formatedDate(date) {
 
     if (month.length < 2)
         month = '0' + month;
+
     if (day.length < 2)
         day = '0' + day;
 
@@ -428,7 +425,6 @@ function formatedDate(date) {
 }
 
 /**
- * TODO DOCS
  * Save result in csv file for download
  * @param data
  */

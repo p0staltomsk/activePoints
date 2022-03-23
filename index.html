@@ -1,13 +1,52 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+
     <meta charset="UTF-8">
+
+    <!-- добавим стили mocha, для отрбражения результатов -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/mocha/3.2.0/mocha.css">
+
+    <!-- добавляем сам фреймворк mocha -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mocha/3.2.0/mocha.js"></script>
+
+    <script>
+        // включаем режим тестирования в стиле BDD
+        mocha.setup('bdd');
+    </script>
+
+    <!-- добавим chai -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chai/3.5.0/chai.js"></script>
+
+    <script>
+        // chai предоставляет большое количество функций. Объявим assert глобально
+        let assert = chai.assert;
+    </script>
+
     <title>Balance Day Test Work</title>
+
 </head>
 <body>
 
     <h3>Choose data file first:</h3>
     <input type="file" id="file-input" />
+
+    <script>
+        function pow() {
+            return 8; // :) сжульничаем!
+        }
+    </script>
+
+    <!-- скрипт со спецификацией (describe, it...) -->
+    <script src="test.js"></script>
+
+    <!-- элемент с id="mocha" будет содержать результаты тестов -->
+    <div id="mocha"></div>
+
+    <!-- запускаем тесты! -->
+    <script>
+        mocha.run();
+    </script>
 
     <a id="result-link"></a>
 
