@@ -421,8 +421,8 @@ function formatedDateAndTime(date, onlyDate) {
 
     var d = new Date(date),
         year = d.getFullYear(),
-        month = addZero('' + (d.getMonth() + 1)),
-        day = addZero('' + d.getDate()),
+        month = addZero((d.getMonth() + 1)),
+        day = addZero(d.getDate()),
         hour = addZero(d.getHours()),
         minute = addZero(d.getMinutes()),
         second = addZero(d.getSeconds());
