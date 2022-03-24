@@ -4,6 +4,7 @@
 
     <meta charset="UTF-8">
 
+    <link rel="stylesheet" href="main.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/mocha/3.2.0/mocha.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/mocha/3.2.0/mocha.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/chai/3.5.0/chai.js"></script>
@@ -18,16 +19,39 @@
 </head>
 <body>
 
-    <h3>Choose data file first:</h3>
-    <input type="file" id="file-input" />
+    <!-- Add loader-wrapper just below the body tag -->
+    <div class="loader-wrapper">
+        <div class="loader"></div>
+        <div class="loader-section section-left"></div>
+        <div class="loader-section section-right"></div>
+    </div>
 
-    <!-- UT results -->
-    <div id="mocha"></div>
+    <!--  Page Content goes here  -->
+    <div class="container">
 
-    <a id="result-link"></a>
+        <p>
+        <h3>Choose data file first:</h3>
+        <input type="file" id="file-input" />
 
-    <h3>Raw contents of the file:</h3>
-    <pre id="file-content">No data yet.</pre>
+        <input type="submit" id="file-choosen" value="Load CSV" />
+        </p>
+
+        <p>
+            <!--result node -->
+            <a id="result-link"></a>
+        </p>
+
+        <p>
+            <!-- UT results -->
+        <div id="mocha"></div>
+        </p>
+
+        <p>
+        <h3>Raw contents of the file:</h3>
+        <pre id="file-content">No data yet.</pre>
+        </p>
+
+    </div>
 
 </body>
 

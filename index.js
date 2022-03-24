@@ -1,6 +1,8 @@
 /* event when csv table upload */
 
-document.getElementById('file-input').addEventListener('change', readSingleFile, false);
+/* preloader stop */
+document.querySelector('body').classList.add("loaded");
+document.getElementById('file-choosen').addEventListener('click', executeScript, false);
 
 /* any const */
 const $ver = '0.1';                     // beta ver
@@ -38,15 +40,16 @@ var $globalArrData = {},
 
 /**
  * Read csv data for analyse and do result
- * @param e
+ * @param file
  */
-function readSingleFile(e) {
+function readSingleFile(file) {
+
+    /* preloader stop */
+    document.querySelector('body').classList.remove("loaded");
 
     /* performance start */
     console.log('start Balance Points Calculator ver - ' + $ver, performance.now());
     console.log('readSingleFile from', performance.now());
-
-    var file = e.target.files[0];
 
     if (!file) {
         return;
@@ -107,6 +110,9 @@ function readSingleFile(e) {
  * @returns {{}}
  */
 function getBalancePoints(data, unitTest) {
+
+    /* preloader stop */
+    document.querySelector('body').classList.add("loaded");
 
     var $caseIn = {}, glueStart = 0, glueStop = 0;
 
@@ -462,6 +468,14 @@ function saveSingleFile(data) {
     link.setAttribute("href", encodedUri);
     link.innerHTML = "download mobile_test_output_example.csv";
     link.setAttribute("download", "mobile_test_output_example.csv");
+}
+
+/**
+ * Just pack for execute main script when file is choosen
+ */
+function executeScript() {
+
+    readSingleFile(document.getElementById('file-input').files[0]);
 }
 
 /* visualisation for tests & debug */
